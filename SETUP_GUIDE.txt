@@ -1,0 +1,256 @@
+================================================================================
+                    🌌 NEXORA — SYSTEM SETUP & DEPLOYMENT GUIDE
+================================================================================
+
+This document walks you through the step-by-step process of installing, configuring, 
+hardening, and deploying NEXORA for both local development and production.
+
+---
+
+================================================================================
+SECTION 1 — PREREQUISITES & COMPATIBILITY
+================================================================================
+
+Please download and install the following dependencies on your development machine:
+
+  DEPENDENCY        MINIMUM VERSION    OFFICIAL DOWNLOAD LINK
+  ──────────────────────────────────────────────────────────────────────────
+  Python            3.11 or higher     https://www.python.org/downloads/
+  Node.js           18.0 or higher     https://nodejs.org/ (LTS recommended)
+  npm               9.0 or higher      (Bundled with Node.js)
+  Git               2.30 or higher     https://git-scm.com/downloads
+
+  Hardware Requirements:
+    - RAM: 1GB minimum (2GB recommended. Highly optimized SentenceTransformer lazy-loading and dynamic in-memory index creation).
+    - Disk Space: 500MB free space (completely stateless design with zero persistent local disk footprint).
+    - Internet: Active connection for external APIs (Gemini, Firebase, Cloudinary)
+
+---
+
+================================================================================
+SECTION 2 — LOCAL DEVELOPMENT SETUP
+================================================================================
+
+Step 1: Clone the Codebase
+──────────────────────────
+  Open your shell and clone the repository:
+    git clone https://github.com/Ritikjagtap11/Nexora.git
+    cd Nexora
+
+Step 2: Backend Installation
+────────────────────────────
+  1. Open a terminal and navigate to the backend folder:
+     cd backend
+
+  2. Create a clean Python virtual environment:
+     python -m venv venv
+
+  3. Activate the virtual environment:
+     • Windows PowerShell:
+       venv\Scripts\Activate.ps1
+     • Windows CMD:
+       venv\Scripts\activate.bat
+     • macOS/Linux:
+       source venv/bin/activate
+
+     *Note: You should see "(venv)" appended to the front of your shell prompt.*
+
+  4. If PowerShell gives an ExecutionPolicy warning on Windows, run:
+     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+     Then try activating the virtual environment again.
+
+  5. Upgrade your Python installer tool (pip) and pull dependencies:
+     python -m pip install --upgrade pip
+     pip install -r requirements.txt
+
+Step 3: Frontend Installation
+─────────────────────────────
+  1. Open a new, separate terminal window (keeping the backend terminal running).
+  2. Navigate into the frontend folder:
+     cd frontend
+
+  3. Install all Node.js package dependencies:
+     npm install
+
+---
+
+================================================================================
+SECTION 3 — THIRD-PARTY INFRASTRUCTURE CREATION & SECRET SETUP
+================================================================================
+
+Nexora relies on four core cloud integrations. Follow these steps to obtain credentials:
+
+1. Firebase Integration (Authentication & Database)
+───────────────────────────────────────────────────
+  1. Navigate to the Firebase Console: https://console.firebase.google.com/
+  2. Click "Add Project" and name it "Nexora".
+  3. Navigate to "Authentication" -> "Sign-in method" tab:
+     • Enable the "Email/Password" provider.
+     • Enable the "Google" provider.
+  4. Navigate to "Firestore Database" in the sidebar:
+     • Click "Create Database" and select "Start in production mode".
+     • Choose a regional location closest to your workspace and click Enable.
+  5. Go to "Project Settings" (gear icon) -> "General" tab:
+     • Create a "Web App" under the Your Apps section.
+     • Copy the config values and update them in `frontend/src/services/firebase.js`.
+  6. Go to "Project Settings" -> "Service Accounts" tab:
+     • Click "Generate New Private Key" and download the JSON file.
+     • Rename this file to `firebase-service-account.json`.
+     • Place it directly inside the `backend/` root directory.
+
+2. Google Cloud Platform (Google Drive API & OAuth)
+────────────────────────────────────────────────────
+  1. Navigate to the Google Cloud Console: https://console.cloud.google.com/
+  2. Select your Firebase project from the dropdown.
+  3. Go to "APIs & Services" -> "Library" and search for "Google Drive API". Click Enable.
+  4. Go to "APIs & Services" -> "OAuth Consent Screen":
+     • Choose "External" and configure application details.
+     • Add scopes: `.../auth/drive.metadata.readonly` and `.../auth/drive.readonly`.
+     • Add test users (your Google accounts you wish to scan).
+  5. Go to "APIs & Services" -> "Credentials":
+     • Click "+ Create Credentials" -> "OAuth Client ID".
+     • Select "Web Application" as the Application Type.
+     • Add "Authorized JavaScript Origins":
+       - Local Dev: `http://localhost:5173`
+       - Production: `https://your-nexora-frontend.onrender.com`
+     • Add "Authorized Redirect URIs":
+       - Local Dev: `http://localhost:8000/api/drive/oauth/callback`
+       - Production: `https://your-nexora-backend.onrender.com/api/drive/oauth/callback`
+  6. Download the resulting Google Client ID and Google Client Secret keys.
+
+3. Google Gemini API (Rotating Keys)
+────────────────────────────────────
+  1. Navigate to Google AI Studio: https://aistudio.google.com/
+  2. Click "Create API Key" -> "Create API key in new project".
+  3. Copy your key. To enable high-availability key rotation, you can create up to 5 unique keys.
+
+4. Cloudinary (Asset Storage)
+─────────────────────────────
+  1. Sign up for a free account at Cloudinary: https://cloudinary.com/
+  2. Copy your **Cloud Name**, **API Key**, and **API Secret** from the main Dashboard page.
+
+---
+
+================================================================================
+SECTION 4 — LOCAL ENVIRONMENT FILES CONFIGURATION
+================================================================================
+
+1. Frontend Configuration
+─────────────────────────
+Create a file named `frontend/.env` using `frontend/.env.example` as a template:
+  VITE_API_URL=http://localhost:8000
+  VITE_FIREBASE_API_KEY=your_firebase_web_api_key
+  VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+  VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+  VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
+
+2. Backend Configuration
+────────────────────────
+Create a file named `backend/.env` using `backend/.env.example` as a template:
+  GEMINI_API_KEY_1=your_first_gemini_key
+  GEMINI_API_KEY_2=your_second_gemini_key (optional)
+  FIREBASE_PROJECT_ID=your_firebase_project_id
+  FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
+  GOOGLE_CLIENT_ID=your_google_oauth_client_id.apps.googleusercontent.com
+  GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+  GOOGLE_REDIRECT_URI=http://localhost:8000/api/drive/oauth/callback
+  FRONTEND_URL=http://localhost:5173
+  CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+  CLOUDINARY_API_KEY=your_cloudinary_api_key
+  CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+
+---
+
+================================================================================
+SECTION 5 — STARTING SERVICES LOCALLY
+================================================================================
+
+Terminal 1 — Python FastAPI Backend
+───────────────────────────────────
+  cd backend
+  # Activate virtual environment:
+  # Windows: venv\Scripts\Activate.ps1 | macOS: source venv/bin/activate
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+  *Expected success log:*
+  "INFO: Uvicorn running on http://0.0.0.0:8000"
+
+Terminal 2 — React Web Client
+─────────────────────────────
+  cd frontend
+  npm run dev
+
+  *Expected success log:*
+  "➜  Local:   http://localhost:5173/"
+
+Open your web browser and navigate to: http://localhost:5173
+
+---
+
+================================================================================
+SECTION 6 — PRODUCTION DEPLOYMENT ON RENDER
+================================================================================
+
+Nexora is fully optimized for Render and uses a single-click Blueprints architecture.
+
+1. Fully Stateless Architecture (Render Free Plan Supported)
+─────────────────────────────────────────────────────────────
+> [!NOTE]
+> Nexora is engineered to be fully stateless and is completely compatible with Render's **Free Tier** out of the box without requiring a paid Persistent Disk.
+> 
+> Document chunks and sentence embeddings are stored in Firestore under `users/{uid}/chunks/{chunkId}`, and document metadata is stored in `users/{uid}/documents/{docId}`. Chat queries dynamically pull chunks from Firestore on-demand to initialize the local memory cache and build a temporary, thread-safe, in-memory FAISS flat index on-the-fly, achieving lightning-fast responses with zero local disk footprint.
+
+2. Deployment Steps
+───────────────────
+  1. Commit your codebase changes and push them to your **GitHub** repository.
+  2. Log into the Render Console: https://dashboard.render.com/
+  3. Click **New -> Blueprint**.
+  4. Connect your GitHub repository.
+  5. Under "Blueprint Instance", Render will read your root-level `render.yaml` file and request value configurations for all production environment variables:
+     • Provide the content of your `firebase-service-account.json` inside the secret variable.
+     • Provide your production backend and frontend endpoints.
+  6. Click **Approve & Deploy**.
+  7. Once built, update your Google Cloud Console Authorized JavaScript Origins and Redirect URIs to point to the newly generated production URLs on Render.
+
+---
+
+================================================================================
+SECTION 7 — SYSTEM ARCHITECTURE WORKFLOW NOTES
+================================================================================
+
+• **Directory Exploration (Lightweight Scan):** The Google Drive scanning page is strictly metadata-only. It performs a lightweight, rapid crawl of your Drive files and folders, computing indexable files based on extension (`.pdf`, `.docx`, `.txt`) and displaying the structure instantly without generating vectors or calling the LLM. This makes traversal memory-efficient and fast.
+• **Workspace Indexing (Lazy Vector Ingestion):** Documents are embedded and ingested into the FAISS vector database only when you select them inside the **Chat Sidebar Panel**. This isolates embedding generation processes and prevents heavy server loads.
+
+---
+
+================================================================================
+SECTION 8 — TROUBLESHOOTING GUIDE & PRODUCTION CHECKLIST
+================================================================================
+
+Common Errors
+─────────────
+• **Error: "SSL: WRONG_VERSION_NUMBER" or general connection crash?**
+  *Cause:* The system was trying to index documents in parallel while executing deep scans.
+  *Fix:* We have fully decoupled Drive scanning and indexing. Ensure that your scanning page is metadata-only, and document ingestion runs solely on selected items from the Chat sidebar.
+• **Error: Google Drive connected, but lists empty files?**
+  *Cause:* Your Google OAuth app is in "Testing" mode and your account has not been added to the test users list.
+  *Fix:* Go to Google Cloud Console -> OAuth Consent Screen, and add your scanning account under the Test Users section.
+• **Error: ModuleNotFoundError on app startup?**
+  *Cause:* Python virtual environment is not active in your shell.
+  *Fix:* Verify that "(venv)" is visible on the left of your terminal. If not, rerun the activation script from Section 2.
+
+Production Checklist
+────────────────────
+- [ ] No hardcoded localhost URLs are present in code.
+- [ ] CORS origins in `main.py` include the production frontend domain.
+- [ ] Production callback URLs are registered in Google Cloud Console Credentials.
+- [ ] Fully stateless operations are configured using Firestore chunks collection and dynamic in-memory FAISS flat indexes. No persistent disk is needed.
+- [ ] Rotator is configured with at least one active Google Gemini API key.
+- [ ] Firestore collections have security rules active.
+- [ ] Cloudinary accounts have valid, whitespace-free API keys.
+- [ ] Deep scans complete directly from "scanning" to "completed" smoothly.
+- [ ] `.env` and `firebase-service-account.json` are excluded in `.gitignore`.
+
+================================================================================
+                           END OF SYSTEM SETUP GUIDE
+================================================================================
